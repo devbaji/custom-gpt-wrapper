@@ -351,7 +351,7 @@ export default function Home() {
                 className={cn(
                   'w-auto rounded-lg p-2 relative group',
                   message.role === 'user'
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-blue-500 text-white max-w-[70%]'
                     : 'bg-white text-gray-800 shadow'
                 )}
               >

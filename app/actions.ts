@@ -11,7 +11,7 @@ export async function generateChatResponse(
 ) {
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4',
+            model: 'chatgpt-4o-latest',
             messages: messages.map(msg => ({
                 role: msg.role,
                 content: msg.content,

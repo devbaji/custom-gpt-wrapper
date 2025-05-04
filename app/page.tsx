@@ -3,6 +3,8 @@
 import { useRef, useEffect, useState } from 'react';
 import MarkdownRenderer from './components/MarkdownRenderer';
 import { cn } from './lib/cn';
+import Button from './components/Button';
+import LogoutButton from './components/LogoutButton';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -19,6 +21,7 @@ export default function Home() {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [isClearingChat, setIsClearingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
@@ -47,10 +50,12 @@ export default function Home() {
   }, [messages, shouldAutoScroll]);
 
   const handleNewChat = () => {
+    setIsClearingChat(true);
     setMessages([]);
     setInput('');
     setEditingMessageId(null);
     setEditingContent('');
+    setIsClearingChat(false);
   };
 
   const handleStop = () => {
@@ -317,19 +322,22 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-[100dvh] bg-gray-50">
-      <div className="border-b border-gray-200 p-4 bg-white w-full">
-        <div className={cn('flex justify-between items-center', 'max-w-3xl mx-auto w-full')}>
+      <header className="bg-white border-b border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
           <h1 className="text-xl font-semibold text-gray-800">{displayName}</h1>
           <div className="flex items-center gap-4">
-            <button
+            <Button
               onClick={handleNewChat}
-              className={cn('px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors')}
+              loading={isClearingChat}
+              variant="secondary"
+              disabled={messages.length === 0}
             >
               New Chat
-            </button>
+            </Button>
+            <LogoutButton />
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Chat container (centered, max width) */}
       <div ref={chatContainerRef} className="flex-1 overflow-y-auto flex justify-center relative">
@@ -440,10 +448,10 @@ export default function Home() {
             ) : (
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !input.trim()}
                 className={cn(
                   'absolute right-4 bottom-4 px-4 py-2 rounded-lg transition-colors text-white',
-                  isLoading
+                  isLoading || !input.trim()
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-600'
                 )}

@@ -16,7 +16,7 @@ const appName = process.env.APP_NAME || "";
 
 export const metadata: Metadata = {
   title: appName,
-  description: "A custom ChatGPT wrapper with enhanced features",
+  description: "A custom ChatGPT wrapper for personal use",
 };
 
 export default function RootLayout({

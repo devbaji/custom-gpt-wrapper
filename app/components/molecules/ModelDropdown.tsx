@@ -1,6 +1,6 @@
 import { Listbox } from '@headlessui/react';
-import { cn } from '../lib/cn';
-import { SUPPORTED_MODELS } from '../constants/model';
+import { cn } from '../../lib/cn';
+import { SUPPORTED_MODELS } from '../../constants/model';
 
 interface ModelDropdownProps {
     selectedModel: string;

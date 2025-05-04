@@ -1,12 +1,19 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Header, Message, ChatInput, ScrollToBottomButton } from './components';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   id: string;
+  attachments?: {
+    type: string;
+    url: string;
+    name: string;
+    file?: File;
+  }[];
+  formDataEntries?: [string, string | Blob][];
 }
 
 export default function Home() {
@@ -19,6 +26,7 @@ export default function Home() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [isClearingChat, setIsClearingChat] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
@@ -46,8 +54,27 @@ export default function Home() {
     }
   }, [messages, shouldAutoScroll]);
 
+  // Cleanup function for URL objects
+  const cleanupURLObjects = useCallback((messages: Message[]) => {
+    messages.forEach(message => {
+      message.attachments?.forEach(attachment => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url);
+        }
+      });
+    });
+  }, []);
+
+  // Add cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      cleanupURLObjects(messages);
+    };
+  }, [cleanupURLObjects, messages]);
+
   const handleNewChat = () => {
     setIsClearingChat(true);
+    cleanupURLObjects(messages);
     setMessages([]);
     setInput('');
     setEditingMessageId(null);
@@ -67,21 +94,33 @@ export default function Home() {
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
 
-    const messagesToRetry = messages.slice(0, messageIndex);
-    const userMessage = messages[messageIndex - 1];
-    setMessages(messagesToRetry);
+    // Find the last user message before this assistant message
+    const lastUserMessage = messages[messageIndex - 1];
+    if (!lastUserMessage || lastUserMessage.role !== 'user') return;
+
+    // Keep all messages up to the assistant's message that we're retrying
+    const updatedMessages = messages.slice(0, messageIndex);
+    setMessages(updatedMessages);
     setIsLoading(true);
 
     try {
       abortControllerRef.current = new AbortController();
+
+      // Recreate the exact same FormData from the stored entries
+      const formData = new FormData();
+      if (lastUserMessage.formDataEntries) {
+        for (const [key, value] of lastUserMessage.formDataEntries) {
+          formData.append(key, value);
+        }
+      } else {
+        // Fallback if formDataEntries is not available
+        formData.append('message', lastUserMessage.content);
+        formData.append('messages', JSON.stringify(updatedMessages));
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [...messagesToRetry, userMessage],
-        }),
+        body: formData,
         signal: abortControllerRef.current.signal,
       });
 
@@ -95,7 +134,12 @@ export default function Home() {
       }
 
       let assistantMessage = '';
-      setMessages((prev) => [...prev, { role: 'assistant', content: '', id: (Date.now() + 1).toString() }]);
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: '',
+        id: (Date.now() + 1).toString(),
+        attachments: []
+      }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -109,6 +153,7 @@ export default function Home() {
             role: 'assistant',
             content: assistantMessage,
             id: newMessages[newMessages.length - 1].id,
+            attachments: []
           };
           return newMessages;
         });
@@ -123,6 +168,7 @@ export default function Home() {
           role: 'assistant',
           content: 'Sorry, there was an error processing your request.',
           id: Date.now().toString(),
+          attachments: []
         },
       ]);
     } finally {
@@ -132,21 +178,38 @@ export default function Home() {
   };
 
   const handleEdit = (message: Message) => {
-    setEditingMessageId(message.id);
-    setEditingContent(message.content);
+    if (editingMessageId === message.id) {
+      // Cancel edit
+      setEditingMessageId(null);
+      setEditingContent('');
+    } else {
+      // Start edit
+      setEditingMessageId(message.id);
+      setEditingContent(message.content);
+    }
   };
 
   const handleSaveEdit = async () => {
     if (!editingMessageId) return;
 
+    const trimmedContent = editingContent.trim();
+    if (!trimmedContent) return;
+
     const messageIndex = messages.findIndex(m => m.id === editingMessageId);
     if (messageIndex === -1) return;
 
+    const editedMessage = messages[messageIndex];
+
+    // Create updated message with new content but preserve attachments and formDataEntries
+    const updatedMessage = {
+      ...editedMessage,
+      content: trimmedContent
+    };
+
     const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
-      msg.id === editingMessageId
-        ? { ...msg, content: editingContent }
-        : msg
+      msg.id === editingMessageId ? updatedMessage : msg
     );
+
     setMessages(updatedMessages);
     setEditingMessageId(null);
     setEditingContent('');
@@ -155,14 +218,28 @@ export default function Home() {
 
     try {
       abortControllerRef.current = new AbortController();
+      const formData = new FormData();
+
+      // If we have stored FormData entries, use them but update the message content
+      if (editedMessage.formDataEntries) {
+        for (const [key, value] of editedMessage.formDataEntries) {
+          if (key === 'message') {
+            formData.append(key, trimmedContent);
+          } else if (key === 'messages') {
+            formData.append(key, JSON.stringify(updatedMessages));
+          } else {
+            formData.append(key, value);
+          }
+        }
+      } else {
+        // Fallback if no stored FormData
+        formData.append('message', trimmedContent);
+        formData.append('messages', JSON.stringify(updatedMessages));
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: updatedMessages,
-        }),
+        body: formData,
         signal: abortControllerRef.current.signal,
       });
 
@@ -176,7 +253,12 @@ export default function Home() {
       }
 
       let assistantMessage = '';
-      setMessages((prev) => [...prev, { role: 'assistant', content: '', id: (Date.now() + 1).toString() }]);
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: '',
+        id: (Date.now() + 1).toString(),
+        attachments: []
+      }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -190,6 +272,7 @@ export default function Home() {
             role: 'assistant',
             content: assistantMessage,
             id: newMessages[newMessages.length - 1].id,
+            attachments: []
           };
           return newMessages;
         });
@@ -204,6 +287,7 @@ export default function Home() {
           role: 'assistant',
           content: 'Sorry, there was an error processing your request.',
           id: Date.now().toString(),
+          attachments: []
         },
       ]);
     } finally {
@@ -214,28 +298,54 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && attachedFiles.length === 0) || isLoading) return;
 
+    const formData = new FormData();
+    const fileAttachments = [];
+
+    // First create all file attachments and get their URLs
+    for (const file of attachedFiles) {
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        fileAttachments.push({
+          type: file.type,
+          url: url,
+          name: file.name,
+          file: file // Store the original file
+        });
+      }
+    }
+
+    // Create the user message first with attachments
     const userMessage: Message = {
       role: 'user',
       content: input.trim(),
       id: Date.now().toString(),
+      attachments: fileAttachments.map(({ type, url, name }) => ({ type, url, name }))
     };
+
+    // Add files to formData after creating URLs
+    for (const attachment of fileAttachments) {
+      formData.append('files', attachment.file);
+    }
+
+    formData.append('message', input.trim());
+    formData.append('messages', JSON.stringify([...messages, userMessage]));
+
+    // Store the FormData entries for retry
+    const formDataEntries = Array.from(formData.entries());
+    userMessage.formDataEntries = formDataEntries;
 
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    setAttachedFiles([]);
     setIsLoading(true);
 
     try {
       abortControllerRef.current = new AbortController();
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-        }),
+        body: formData,
         signal: abortControllerRef.current.signal,
       });
 
@@ -249,7 +359,12 @@ export default function Home() {
       }
 
       let assistantMessage = '';
-      setMessages((prev) => [...prev, { role: 'assistant', content: '', id: (Date.now() + 1).toString() }]);
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: '',
+        id: (Date.now() + 1).toString(),
+        attachments: []
+      }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -263,6 +378,7 @@ export default function Home() {
             role: 'assistant',
             content: assistantMessage,
             id: newMessages[newMessages.length - 1].id,
+            attachments: []
           };
           return newMessages;
         });
@@ -277,6 +393,7 @@ export default function Home() {
           role: 'assistant',
           content: 'Sorry, there was an error processing your request.',
           id: Date.now().toString(),
+          attachments: []
         },
       ]);
     } finally {
@@ -317,43 +434,64 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-gray-50">
+    <main className="flex flex-col h-screen max-h-screen bg-gray-50">
       <Header
         displayName={displayName}
         onNewChat={handleNewChat}
         isClearingChat={isClearingChat}
         hasMessages={messages.length > 0}
       />
-
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto flex justify-center relative">
-        <div className={'w-full max-w-3xl p-4 space-y-4'}>
-          {messages.map((message) => (
-            <Message
-              key={message.id}
-              message={message}
-              onEdit={handleEdit}
-              onSaveEdit={handleSaveEdit}
-              onRetry={handleRetry}
-              editingMessageId={editingMessageId}
-              editingContent={editingContent}
-              setEditingContent={setEditingContent}
-            />
-          ))}
-          <div className='h-3' ref={messagesEndRef} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto relative"
+          onScroll={onScroll}
+        >
+          <div className="max-w-3xl mx-auto pt-4 pb-24">
+            {messages.map((message, index) => (
+              <Message
+                key={message.id}
+                message={message}
+                onRetry={handleRetry}
+                onEdit={handleEdit}
+                editingMessageId={editingMessageId}
+                editingContent={editingContent}
+                setEditingContent={setEditingContent}
+                onSaveEdit={handleSaveEdit}
+                isLast={index === messages.length - 1}
+                isLoading={isLoading}
+              />
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} />}
         </div>
-        {showScrollButton && (
-          <ScrollToBottomButton onClick={scrollToBottom} />
-        )}
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 w-full">
+          <div className="max-w-3xl mx-auto px-4 py-4 relative">
+            {isLoading && (
+              <div className="mb-4 absolute top-[0.3rem] left-1">
+                <div className="max-w-3xl mx-auto px-4">
+                  <div className="flex items-center space-x-2 animate-pulse">
+                    <div className="h-1.5 w-1.5 bg-gray-500 rounded-full"></div>
+                    <div className="h-1.5 w-1.5 bg-gray-500 rounded-full"></div>
+                    <div className="h-1.5 w-1.5 bg-gray-500 rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <ChatInput
+              input={input}
+              onInputChange={setInput}
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              onStop={handleStop}
+              onKeyDown={handleKeyDown}
+              onFilesSelected={setAttachedFiles}
+              attachedFiles={attachedFiles}
+            />
+          </div>
+        </div>
       </div>
-
-      <ChatInput
-        input={input}
-        isLoading={isLoading}
-        onInputChange={setInput}
-        onKeyDown={handleKeyDown}
-        onSubmit={handleSubmit}
-        onStop={handleStop}
-      />
-    </div>
+    </main>
   );
 }

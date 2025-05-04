@@ -7,17 +7,14 @@ const openai = new OpenAI({
 });
 
 export async function generateChatResponse(
-    messages: { role: 'user' | 'assistant'; content: string }[],
-    model: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
 ) {
-    console.log("trying to generate chat response with model", model);
-
     try {
         const response = await openai.chat.completions.create({
-            model,
+            model: 'gpt-4',
             messages: messages.map(msg => ({
                 role: msg.role,
-                content: msg.content
+                content: msg.content,
             })),
             stream: true,
         });
@@ -41,7 +38,8 @@ export async function generateChatResponse(
                 'Transfer-Encoding': 'chunked',
             },
         });
-    } catch {
+    } catch (error) {
+        console.error('Error generating chat response:', error);
         throw new Error('Failed to generate response');
     }
 } 

@@ -316,7 +316,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-[100dvh] bg-gray-50">
       <div className="border-b border-gray-200 p-4 bg-white w-full">
         <div className={cn('flex justify-between items-center', 'max-w-3xl mx-auto w-full')}>
           <h1 className="text-xl font-semibold text-gray-800">{displayName}</h1>
@@ -423,7 +423,7 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
+              placeholder="Type your message..."
               className={cn('w-full p-4 pr-12 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white text-gray-800')}
               rows={1}
               style={{ minHeight: '60px', maxHeight: '200px' }}

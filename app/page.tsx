@@ -10,15 +10,12 @@ interface Message {
   id: string;
 }
 
-// Get app name from injected global variable (set in layout)
-const appName = 'GPT Wrapper';
-
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-  const [displayName, setDisplayName] = useState(appName);
+  const [displayName, setDisplayName] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');

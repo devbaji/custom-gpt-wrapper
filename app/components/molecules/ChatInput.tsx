@@ -136,7 +136,7 @@ export default function ChatInput({
                         placeholder={isDragActive ? 'Drop images here...' : 'Type your message...'}
                         className={cn('w-full p-4 pr-24 rounded-lg focus:outline-none resize-none bg-transparent text-gray-800')}
                         rows={1}
-                        style={{ minHeight: '60px', maxHeight: '200px' }}
+                        style={{ minHeight: '24px', maxHeight: '200px', height: 'auto' }}
                         disabled={isLoading}
                     />
                     <div className="absolute right-4 bottom-4 flex items-center space-x-2">

@@ -434,17 +434,17 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex flex-col h-screen max-h-screen bg-gray-50">
+    <main className="flex flex-col h-[100dvh] max-h-[100dvh] bg-gray-50">
       <Header
         displayName={displayName}
         onNewChat={handleNewChat}
         isClearingChat={isClearingChat}
         hasMessages={messages.length > 0}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         <div
           ref={chatContainerRef}
-          className="flex-1 overflow-y-auto relative"
+          className="flex-1 overflow-y-auto"
           onScroll={onScroll}
         >
           <div className="max-w-3xl mx-auto pt-4 pb-24">
@@ -467,7 +467,7 @@ export default function Home() {
           {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} />}
         </div>
         <div className="sticky bottom-0 bg-white border-t border-gray-200 w-full">
-          <div className="max-w-3xl mx-auto px-4 py-4 relative">
+          <div className="max-w-3xl mx-auto px-4 py-2 relative">
             {isLoading && (
               <div className="mb-4 absolute top-[0.3rem] left-1">
                 <div className="max-w-3xl mx-auto px-4">

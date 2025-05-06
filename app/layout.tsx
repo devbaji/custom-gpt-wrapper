@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import RootLayoutClient from "./components/RootLayoutClient";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,11 +13,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appName = process.env.APP_NAME || "";
+const appName = process.env.APP_NAME || "GPT Wrapper";
 
 export const metadata: Metadata = {
   title: appName,
   description: "A custom ChatGPT wrapper for personal use",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/logo.svg",
+    apple: "/icons/icon-192x192.png",
+  },
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({
@@ -25,20 +32,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head />
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {process.env.APP_NAME && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `window.APP_NAME = ${JSON.stringify(process.env.APP_NAME)};`,
-            }}
-          />
-        )}
-        {children}
-      </body>
-    </html>
+    <RootLayoutClient
+      appName={appName}
+      geistSans={geistSans.variable}
+      geistMono={geistMono.variable}
+    >
+      {children}
+    </RootLayoutClient>
   );
 }
